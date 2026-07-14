@@ -8,7 +8,8 @@ from django.contrib.auth import authenticate
 from .serializers import Userregisterserializer
 from .models import Villa, Availability, Reservation
 from .serializers import Villaserializer, Availabilityserializer, Reservationserializer
-from datetime import timedelta
+from datetime import timedelta, datetime
+from django.db import transaction
 
 class Registerview(APIView):
     def post(self, request):
@@ -47,7 +48,7 @@ class Villaview(APIView):
         check_out = request.query_params.get('check_out')
         if check_in and check_out:
             check_in = parse_date(check_in)
-            check_out = parse_date(check_in)
+            check_out = parse_date(check_out)
 
             if check_in and check_out and check_in < check_out:
                 total_days = (check_out - check_in).days
@@ -108,9 +109,60 @@ class Reservationview(APIView):
             if availabilities.count() != total_days:
                 return Response({"error": "Villa is not available in some dates you chose"}, status=status.HTTP_400_BAD_REQUEST)
 
-            total_price = sum(d.villa_id.price_per_night for d in availabilities)
+            total_price = sum(d.villa_id.night_per_price for d in availabilities)
             reservation = serializer.save(guest_id=request.user, total_price=total_price)
             availabilities.update(is_available=False)
             return Response({"message": "Villa reserved successfully", "reservation": Reservationserializer(reservation).data}, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class Reservationcreateview(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self,request):
+        if request.user.role != 'guest':
+            return Response({"error": "only guests can reserve villa"}, status=status.HTTP_403_FORBIDDEN)
+        villa_id = request.data.get('villa_id')
+        check_instr = request.data.get('check_in')
+        check_outstr = request.data.get('check_out')
+        if not all([villa_id, check_instr, check_outstr]):
+            return Response({"error: villa_id, check_instr and check_outstr needed"},status= status.HTTP_400_BAD_REQUEST)
+        try:
+            check_in = datetime.strptime(check_instr, "%Y-%m-%d").date()
+            check_out = datetime.strptime(check_outstr, "%Y-%m-%d").date()
+            villa = Villa.objects.get(pk= villa_id)
+        except(ValueError, Villa.DoesNotExist):
+            return Response({"error: invalid date format or not found"}, status= status.HTTP_400_BAD_REQUEST)
+        if check_in >= check_out:
+            return Response({"error: check-in must be before check-out"}, status= status.HTTP_400_BAD_REQUEST)
+        requested_dates = []
+        current_date = check_in
+        while(current_date < check_out):
+            requested_dates.append(current_date)
+            current_date += timedelta(days=1)
+        nights = len(requested_dates)
+        try:
+            with transaction.atomic():
+                calender_rows = Availability.objects.select_for_update().filter(id_villa = villa, date__in = requested_dates)
+                available_days = calender_rows.filter(is_available=True).count()
+                if available_days != nights:
+                    return Response({"error: villa not available in the chosen dates"}, status= status.HTTP_400_BAD_REQUEST)
+                price_total = nights * villa.night_per_price
+                reservation = Reservation.objects.create(
+                    id_guest = request.user,
+                    id_villa = villa,
+                    check_in = check_in,
+                    check_out = check_out,
+                    price_total = price_total,
+                    status = 'pending_payment'
+                )
+                calender_rows.update(is_available = False)
+                payment_url = f"https://gateway.example.com/pay/abc{reservation.reservation_id}"
+                response_data = {
+                    'reservation_id': reservation.reservation_id,
+                    'status': reservation.status,
+                    'total_price': reservation.total_price,
+                    'payment_url': payment_url
+                }
+                return Response(response_data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({f"error: {e}"}, status= status.HTTP_500_INTERNAL_SERVER_ERROR)
