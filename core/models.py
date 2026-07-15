@@ -36,10 +36,22 @@ class Reservation(models.Model):
     check_out = models.DateField()
     total_price = models.IntegerField()
     status_choices = [
-        ('pending_payment', 'pending'),
+        ('pending', 'pending'),
         ('confirmed', 'confirmed'),
         ('cancelled', 'cancelled'),
         ('completed', 'completed')
     ]
-    status = models.CharField(max_length=100, choices=status_choices, default='pending_payment')
+    status = models.CharField(max_length=100, choices=status_choices, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Payment(models.Model):
+    reservation_id = models.ForeignKey(Reservation, on_delete=models.CASCADE)
+    amount = models.IntegerField()
+    status_choices = [
+        ('pending', 'pending'),
+        ('success', 'success'),
+        ('failed', 'failed')
+    ]
+    status = models.CharField(choices=status_choices, default='pending')
+    gateway_ref = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
