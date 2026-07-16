@@ -157,7 +157,7 @@ class Reservationcreateview(APIView):
                     status = 'pending'
                 )
                 calender_rows.update(is_available = False)
-                payment_url = f"https://gateway.example.com/pay/abc{reservation.id}"
+                payment_url = f"https://gateway.felan.com/pay/abc{reservation.id}"
                 response_data = {
                     'reservation_id': reservation.id,
                     'status': reservation.status,
