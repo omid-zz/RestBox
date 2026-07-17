@@ -3,7 +3,7 @@ from .models import User, Villa, Availability, Reservation
 
 class Userregisterserializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only = True)
-    
+
     class Meta:
         model = User
         fields = ['full_name', 'email', 'role', 'password']
@@ -19,22 +19,22 @@ class Userregisterserializer(serializers.ModelSerializer):
         return user
 
 class Villaserializer(serializers.ModelSerializer):
-    host = serializers.ReadOnlyField(source='host.full_name')
+    host_id = serializers.ReadOnlyField(source='host_id.full_name')
 
     class Meta:
         model = Villa
-        fields = ['id', 'host', 'title', 'city', 'address', 'price_per_night', 'capacity', 'amenities']
+        fields = ['villa_id', 'host_id', 'title', 'city', 'address', 'price_per_night', 'capacity', 'amenities']
 
 class Availabilityserializer(serializers.ModelSerializer):
     class Meta:
         model = Availability
-        fields = ['id', 'date', 'is_available']
+        fields = ['availability_id', 'date', 'is_available']
     
 class Reservationserializer(serializers.ModelSerializer):
-    guest_id = serializers.ReadOnlyField(source='guest.full_name')
+    guest_id = serializers.ReadOnlyField(source='guest_id.full_name')
     total_price = serializers.ReadOnlyField()
     status = serializers.ReadOnlyField()
 
     class Meta:
         model = Reservation
-        fields = ['id', 'guest_id', 'villa_id', 'check_in', 'check_out', 'total_price', 'status', 'created_at']
+        fields = ['reservation_id', 'guest_id', 'villa_id', 'check_in', 'check_out', 'total_price', 'status', 'created_at']
